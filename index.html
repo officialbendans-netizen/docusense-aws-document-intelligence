@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocuSense — Document Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0a0a0f; --surface: #13131a; --surface2: #1c1c28;
+            --border: #2a2a3a; --accent: #10b981; --accent2: #34d399;
+            --accent-glow: rgba(16,185,129,0.15); --text: #f0f0f5;
+            --text-muted: #8888aa; --success: #34d399; --error: #f87171;
+            --warning: #fbbf24; --purple: #a78bfa; --blue: #60a5fa; --orange: #fb923c;
+        }
+        body { background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:40px 20px 60px; overflow-x:hidden; }
+        body::before { content:''; position:fixed; top:-200px; left:50%; transform:translateX(-50%); width:800px; height:600px; background:radial-gradient(ellipse,rgba(16,185,129,0.07) 0%,transparent 70%); pointer-events:none; z-index:0; }
+        .container { width:100%; max-width:900px; position:relative; z-index:1; }
+        .header { text-align:center; margin-bottom:48px; }
+        .logo { display:inline-flex; align-items:center; gap:10px; margin-bottom:24px; }
+        .logo-icon { width:44px; height:44px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; }
+        .logo-text { font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:700; }
+        .logo-text span { color:var(--accent2); }
+        h1 { font-family:'Space Grotesk',sans-serif; font-size:clamp(28px,5vw,48px); font-weight:700; line-height:1.1; letter-spacing:-1.5px; margin-bottom:14px; }
+        h1 em { font-style:normal; background:linear-gradient(135deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+        .subtitle { color:var(--text-muted); font-size:15px; line-height:1.6; max-width:520px; margin:0 auto; }
+        .upload-card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:36px; margin-bottom:20px; }
+        .drop-zone { border:2px dashed var(--border); border-radius:16px; padding:48px 24px; text-align:center; cursor:pointer; transition:all 0.3s; position:relative; overflow:hidden; }
+        .drop-zone:hover,.drop-zone.dragover { border-color:var(--accent); background:var(--accent-glow); }
+        .drop-zone input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+        .drop-icon { font-size:48px; margin-bottom:16px; display:block; }
+        .drop-title { font-family:'Space Grotesk',sans-serif; font-size:18px; font-weight:600; margin-bottom:8px; }
+        .drop-subtitle { font-size:13px; color:var(--text-muted); }
+        .drop-formats { display:flex; justify-content:center; gap:8px; margin-top:16px; flex-wrap:wrap; }
+        .format-badge { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:3px 10px; font-size:11px; color:var(--text-muted); font-weight:600; }
+        .multi-note { margin-top:12px; font-size:12px; color:var(--accent2); font-weight:500; }
+        .compress-note { margin-top:6px; font-size:11px; color:var(--text-muted); }
+        .file-queue { display:none; margin-top:24px; }
+        .file-queue.visible { display:block; }
+        .queue-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+        .queue-label { font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; }
+        .clear-btn { font-size:12px; color:var(--error); cursor:pointer; background:none; border:none; font-weight:600; }
+        .queue-list { display:flex; flex-direction:column; gap:8px; }
+        .queue-item { display:flex; align-items:center; gap:12px; padding:10px 14px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; transition:all 0.3s; }
+        .queue-item.compressing { border-color:var(--warning); background:rgba(251,191,36,0.08); }
+        .queue-item.ready { border-color:var(--accent); background:var(--accent-glow); }
+        .queue-item.processing { border-color:var(--blue); background:rgba(96,165,250,0.08); }
+        .queue-item.done { border-color:var(--success); opacity:0.8; }
+        .queue-item.error { border-color:var(--error); background:rgba(248,113,113,0.08); }
+        .queue-icon { font-size:20px; min-width:24px; }
+        .queue-info { flex:1; overflow:hidden; }
+        .queue-name { font-size:13px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .queue-detail { font-size:11px; color:var(--text-muted); margin-top:2px; }
+        .queue-status { font-size:11px; font-weight:600; min-width:100px; text-align:right; }
+        .queue-status.waiting { color:var(--text-muted); }
+        .queue-status.compressing { color:var(--warning); }
+        .queue-status.ready { color:var(--accent2); }
+        .queue-status.processing { color:var(--blue); }
+        .queue-status.done { color:var(--success); }
+        .queue-status.error { color:var(--error); }
+        .progress-bar { width:100%; height:6px; background:var(--border); border-radius:3px; margin-top:16px; display:none; overflow:hidden; }
+        .progress-bar.visible { display:block; }
+        .progress-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width 0.4s ease; }
+        .progress-label { font-size:12px; color:var(--text-muted); margin-top:8px; text-align:center; display:none; }
+        .progress-label.visible { display:block; }
+        .analyze-btn { width:100%; padding:16px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; border-radius:12px; color:#0a0a0f; font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:10px; margin-top:20px; }
+        .analyze-btn:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 8px 30px rgba(16,185,129,0.35); }
+        .analyze-btn:disabled { opacity:0.5; cursor:not-allowed; }
+        .spinner { width:18px; height:18px; border:2px solid rgba(0,0,0,0.3); border-top-color:#0a0a0f; border-radius:50%; animation:spin 0.8s linear infinite; display:none; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .status { padding:14px 18px; border-radius:10px; font-size:14px; font-weight:500; margin-top:16px; display:none; align-items:center; gap:10px; }
+        .status.error { background:rgba(248,113,113,0.1); border:1px solid rgba(248,113,113,0.3); color:var(--error); display:flex; }
+        .status.loading { background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); color:var(--accent2); display:flex; }
+        .status.success { background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.3); color:var(--success); display:flex; }
+        .results-section { display:flex; flex-direction:column; gap:20px; }
+        .result-card { background:var(--surface); border:1px solid var(--accent); border-radius:20px; padding:28px; animation:fadeUp 0.4s ease; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+        .result-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:10px; }
+        .result-title-group { display:flex; align-items:center; gap:10px; }
+        .success-dot { width:8px; height:8px; background:var(--success); border-radius:50%; box-shadow:0 0 10px var(--success); }
+        .result-filename { font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:600; }
+        .result-badge { font-size:11px; padding:3px 10px; border-radius:20px; background:rgba(16,185,129,0.15); color:var(--accent2); border:1px solid rgba(16,185,129,0.3); font-weight:600; }
+        .stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px; }
+        .stat-box { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px; text-align:center; }
+        .stat-number { font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:700; color:var(--accent2); margin-bottom:2px; }
+        .stat-label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; }
+        .section { margin-bottom:20px; }
+        .section-title { font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; }
+        .text-box { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:14px; font-size:13px; line-height:1.7; color:var(--text); max-height:160px; overflow-y:auto; white-space:pre-wrap; }
+        .sentiment-box { display:flex; align-items:center; gap:14px; padding:14px 18px; border-radius:10px; border:1px solid var(--border); }
+        .sentiment-positive { background:rgba(52,211,153,0.1); border-color:rgba(52,211,153,0.3); }
+        .sentiment-negative { background:rgba(248,113,113,0.1); border-color:rgba(248,113,113,0.3); }
+        .sentiment-neutral { background:rgba(96,165,250,0.1); border-color:rgba(96,165,250,0.3); }
+        .sentiment-mixed { background:rgba(251,191,36,0.1); border-color:rgba(251,191,36,0.3); }
+        .sentiment-emoji { font-size:28px; }
+        .sentiment-label { font-family:'Space Grotesk',sans-serif; font-size:18px; font-weight:700; }
+        .sentiment-desc { font-size:12px; color:var(--text-muted); margin-top:2px; }
+        .tags-grid { display:flex; flex-wrap:wrap; gap:6px; }
+        .tag { padding:5px 12px; border-radius:20px; font-size:12px; font-weight:500; border:1px solid; }
+        .tag-phrase { background:rgba(167,139,250,0.1); border-color:rgba(167,139,250,0.3); color:var(--purple); }
+        .tag-entity { border-radius:6px; font-size:11px; padding:4px 10px; }
+        .tag-PERSON { background:rgba(96,165,250,0.1); border-color:rgba(96,165,250,0.3); color:var(--blue); }
+        .tag-ORGANIZATION { background:rgba(251,191,36,0.1); border-color:rgba(251,191,36,0.3); color:var(--warning); }
+        .tag-LOCATION { background:rgba(52,211,153,0.1); border-color:rgba(52,211,153,0.3); color:var(--success); }
+        .tag-DATE { background:rgba(248,113,113,0.1); border-color:rgba(248,113,113,0.3); color:var(--error); }
+        .tag-QUANTITY { background:rgba(251,146,60,0.1); border-color:rgba(251,146,60,0.3); color:var(--orange); }
+        .tag-OTHER { background:rgba(136,136,170,0.1); border-color:rgba(136,136,170,0.3); color:var(--text-muted); }
+        .entity-type { font-size:9px; opacity:0.7; margin-left:3px; }
+        .divider { height:1px; background:var(--border); margin:16px 0; }
+        .empty-state { color:var(--text-muted); font-size:13px; font-style:italic; }
+        .footer { text-align:center; margin-top:32px; color:var(--text-muted); font-size:13px; }
+        .footer span { color:var(--accent2); }
+        .aws-badges { display:flex; justify-content:center; gap:8px; margin-top:12px; flex-wrap:wrap; }
+        .badge { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:4px 10px; font-size:11px; color:var(--text-muted); font-weight:500; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="logo">
+            <div class="logo-icon">📄</div>
+            <div class="logo-text">Docu<span>Sense</span></div>
+        </div>
+        <h1>AI-powered <em>document intelligence</em></h1>
+        <p class="subtitle">Upload multiple documents. AI automatically compresses, extracts text, detects key phrases, identifies entities and analyzes sentiment.</p>
+    </div>
+
+    <div class="upload-card">
+        <div class="drop-zone" id="dropZone">
+            <input type="file" id="fileInput" accept="image/jpeg,image/jpg,image/png,application/pdf" multiple onchange="handleFileSelect(event)">
+            <span class="drop-icon">📋</span>
+            <div class="drop-title">Drop your documents here</div>
+            <div class="drop-subtitle">or click to select multiple files at once</div>
+            <div class="drop-formats">
+                <span class="format-badge">JPG</span>
+                <span class="format-badge">PNG</span>
+                <span class="format-badge">PDF</span>
+                <span class="format-badge">Receipts</span>
+                <span class="format-badge">Invoices</span>
+                <span class="format-badge">Contracts</span>
+            </div>
+            <div class="multi-note">✅ Multiple files supported</div>
+            <div class="compress-note">⚡ All files automatically compressed before upload</div>
+        </div>
+
+        <div class="file-queue" id="fileQueue">
+            <div class="queue-header">
+                <div class="queue-label" id="queueLabel">0 files</div>
+                <button class="clear-btn" onclick="clearAll()">Clear all</button>
+            </div>
+            <div class="queue-list" id="queueList"></div>
+            <div class="progress-bar" id="progressBar">
+                <div class="progress-fill" id="progressFill" style="width:0%"></div>
+            </div>
+            <div class="progress-label" id="progressLabel"></div>
+        </div>
+
+        <button class="analyze-btn" id="analyzeBtn" onclick="startProcessing()" disabled>
+            <div class="spinner" id="spinner"></div>
+            <span id="btnText">📄 Compress and Analyze</span>
+        </button>
+        <div class="status" id="statusMsg"></div>
+    </div>
+
+    <div class="results-section" id="resultsSection"></div>
+
+    <div class="footer">
+        Built with <span>♥</span> by Benjamin Asare Danquah · AWS Certified Cloud Practitioner
+        <div class="aws-badges">
+            <span class="badge">Amazon S3</span>
+            <span class="badge">AWS Lambda</span>
+            <span class="badge">Amazon Textract</span>
+            <span class="badge">Amazon Comprehend</span>
+            <span class="badge">API Gateway</span>
+            <span class="badge">Amazon DynamoDB</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'https://q8segmsdhh.execute-api.us-east-1.amazonaws.com/prod/analyze';
+    const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    const MAX_WIDTH = 1024;
+    const MAX_HEIGHT = 1024;
+    const QUALITY = 0.80;
+    const MAX_B64_CHARS = 7 * 1024 * 1024; // ~7MB base64 limit
+
+    let fileQueue = [];
+    let isProcessing = false;
+
+    // Drag and drop
+    const dropZone = document.getElementById('dropZone');
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault(); dropZone.classList.remove('dragover');
+        addFiles(Array.from(e.dataTransfer.files));
+    });
+
+    function handleFileSelect(e) {
+        addFiles(Array.from(e.target.files));
+        e.target.value = '';
+    }
+
+    function getFileIcon(type) {
+        if (type === 'application/pdf') return '📕';
+        if (type.startsWith('image/')) return '🖼️';
+        return '📄';
+    }
+
+    function addFiles(files) {
+        let rejected = 0;
+        files.forEach(file => {
+            if (!ALLOWED_TYPES.includes(file.type)) { rejected++; return; }
+            const exists = fileQueue.find(f => f.file.name === file.name && f.file.size === file.size);
+            if (exists) return;
+            fileQueue.push({
+                id: 'f_' + Date.now() + '_' + Math.random().toString(36).substr(2,4),
+                file,
+                status: 'waiting',
+                compressed: null,
+                originalKB: Math.round(file.size / 1024),
+                compressedKB: null,
+                result: null,
+                errorMsg: null
+            });
+        });
+        if (rejected > 0) showStatus('⚠️ ' + rejected + ' file(s) skipped — only JPG, PNG and PDF supported.', 'error');
+        renderQueue();
+    }
+
+    function updateQueueItem(item) {
+        const el = document.getElementById('qi_' + item.id);
+        if (!el) return;
+        const statusMap = {
+            waiting:     { text: '⏳ Waiting',       cls: 'waiting' },
+            compressing: { text: '⚡ Compressing...', cls: 'compressing' },
+            ready:       { text: '✅ Ready',          cls: 'ready' },
+            processing:  { text: '🔍 Analyzing...',   cls: 'processing' },
+            done:        { text: '✅ Complete',        cls: 'done' },
+            error:       { text: '❌ Failed',         cls: 'error' }
+        };
+        const s = statusMap[item.status] || statusMap.waiting;
+        el.className = 'queue-item ' + item.status;
+        el.querySelector('.queue-status').textContent = s.text;
+        el.querySelector('.queue-status').className = 'queue-status ' + s.cls;
+
+        let detail = item.originalKB + ' KB original';
+        if (item.compressedKB) detail += ' → ' + item.compressedKB + ' KB compressed';
+        if (item.status === 'error' && item.errorMsg) detail = item.errorMsg;
+        el.querySelector('.queue-detail').textContent = detail;
+    }
+
+    function renderQueue() {
+        const queueDiv = document.getElementById('fileQueue');
+        const queueList = document.getElementById('queueList');
+        const queueLabel = document.getElementById('queueLabel');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+
+        if (fileQueue.length === 0) {
+            queueDiv.classList.remove('visible');
+            analyzeBtn.disabled = true;
+            return;
+        }
+
+        queueDiv.classList.add('visible');
+        queueLabel.textContent = fileQueue.length + ' file' + (fileQueue.length > 1 ? 's' : '') + ' selected';
+        analyzeBtn.disabled = isProcessing;
+
+        queueList.innerHTML = '';
+        fileQueue.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'queue-item ' + item.status;
+            div.id = 'qi_' + item.id;
+            div.innerHTML =
+                '<span class="queue-icon">' + getFileIcon(item.file.type) + '</span>' +
+                '<div class="queue-info">' +
+                '<div class="queue-name">' + item.file.name + '</div>' +
+                '<div class="queue-detail">' + item.originalKB + ' KB original</div>' +
+                '</div>' +
+                '<span class="queue-status waiting">⏳ Waiting</span>';
+            queueList.appendChild(div);
+        });
+    }
+
+    function clearAll() {
+        if (isProcessing) return;
+        fileQueue = [];
+        document.getElementById('resultsSection').innerHTML = '';
+        renderQueue();
+        hideStatus();
+        document.getElementById('progressBar').classList.remove('visible');
+        document.getElementById('progressLabel').classList.remove('visible');
+        document.getElementById('progressFill').style.width = '0%';
+        document.getElementById('btnText').textContent = '📄 Compress and Analyze';
+        document.getElementById('spinner').style.display = 'none';
+    }
+
+    function showStatus(msg, type) {
+        const el = document.getElementById('statusMsg');
+        el.textContent = msg;
+        el.className = 'status ' + type;
+    }
+
+    function hideStatus() {
+        document.getElementById('statusMsg').className = 'status';
+    }
+
+    function setProgress(pct, label) {
+        document.getElementById('progressBar').classList.add('visible');
+        document.getElementById('progressLabel').classList.add('visible');
+        document.getElementById('progressFill').style.width = pct + '%';
+        document.getElementById('progressLabel').textContent = label;
+    }
+
+    // Compress image using canvas
+    function compressImageFile(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    let w = img.width, h = img.height;
+                    // Keep compressing until small enough
+                    let quality = QUALITY;
+                    let maxW = MAX_WIDTH;
+                    let maxH = MAX_HEIGHT;
+
+                    if (w > maxW || h > maxH) {
+                        const ratio = Math.min(maxW / w, maxH / h);
+                        w = Math.floor(w * ratio);
+                        h = Math.floor(h * ratio);
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+
+                    let result = canvas.toDataURL('image/jpeg', quality);
+
+                    // If still too large reduce quality further
+                    while (result.length > MAX_B64_CHARS && quality > 0.3) {
+                        quality -= 0.1;
+                        result = canvas.toDataURL('image/jpeg', quality);
+                    }
+
+                    // If still too large reduce dimensions
+                    if (result.length > MAX_B64_CHARS) {
+                        w = Math.floor(w * 0.7);
+                        h = Math.floor(h * 0.7);
+                        canvas.width = w; canvas.height = h;
+                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        result = canvas.toDataURL('image/jpeg', 0.6);
+                    }
+
+                    resolve(result);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // For PDF — read as base64 directly
+    function readFileAsBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    async function startProcessing() {
+        if (isProcessing || fileQueue.length === 0) return;
+
+        isProcessing = true;
+        document.getElementById('analyzeBtn').disabled = true;
+        document.getElementById('spinner').style.display = 'block';
+        document.getElementById('resultsSection').innerHTML = '';
+        hideStatus();
+
+        const items = fileQueue.filter(f => f.status === 'waiting' || f.status === 'ready');
+        const total = items.length;
+
+        // ── PHASE 1: Compress all files first ──
+        document.getElementById('btnText').textContent = 'Compressing files...';
+        showStatus('⚡ Compressing all files before uploading...', 'loading');
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            item.status = 'compressing';
+            updateQueueItem(item);
+            setProgress(Math.round((i / items.length) * 50), 'Compressing ' + (i+1) + ' of ' + items.length + ' — ' + item.file.name);
+
+            try {
+                let base64;
+                if (item.file.type === 'application/pdf') {
+                    base64 = await readFileAsBase64(item.file);
+                    // For PDF — check size
+                    if (base64.length > MAX_B64_CHARS) {
+                        item.status = 'error';
+                        item.errorMsg = 'PDF too large for direct upload. Max ~5MB PDF supported.';
+                        updateQueueItem(item);
+                        continue;
+                    }
+                } else {
+                    base64 = await compressImageFile(item.file);
+                }
+
+                // Strip prefix
+                let data = base64;
+                if (data.includes(',')) data = data.split(',')[1];
+
+                item.compressed = data;
+                item.compressedKB = Math.round((data.length * 0.75) / 1024);
+                item.status = 'ready';
+                updateQueueItem(item);
+
+            } catch (e) {
+                item.status = 'error';
+                item.errorMsg = 'Compression failed: ' + e.message;
+                updateQueueItem(item);
+            }
+        }
+
+        // ── PHASE 2: Analyze all compressed files ──
+        const readyItems = items.filter(f => f.status === 'ready');
+        document.getElementById('btnText').textContent = 'Analyzing documents...';
+        showStatus('🔍 Sending to Amazon Textract and Comprehend...', 'loading');
+
+        for (let i = 0; i < readyItems.length; i++) {
+            const item = readyItems[i];
+            item.status = 'processing';
+            updateQueueItem(item);
+            setProgress(50 + Math.round((i / readyItems.length) * 50), 'Analyzing ' + (i+1) + ' of ' + readyItems.length + ' — ' + item.file.name);
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file: item.compressed,
+                        fileName: item.file.name,
+                        fileType: item.file.type
+                    })
+                });
+
+                const rawText = await response.text();
+                let outer;
+                try { outer = JSON.parse(rawText); } catch(e) { throw new Error('Invalid response from server'); }
+
+                let data;
+                if (outer.body && typeof outer.body === 'string') {
+                    try { data = JSON.parse(outer.body); } catch(e) { data = outer; }
+                } else if (outer.body && typeof outer.body === 'object') {
+                    data = outer.body;
+                } else { data = outer; }
+
+                if (data && data.error) throw new Error(data.error);
+                if (!data || data.extractedText === undefined) throw new Error('No results returned');
+
+                item.status = 'done';
+                item.result = data;
+                updateQueueItem(item);
+                displayResult(item);
+
+            } catch (error) {
+                item.status = 'error';
+                item.errorMsg = error.message;
+                updateQueueItem(item);
+                displayError(item);
+            }
+        }
+
+        // ── Done ──
+        setProgress(100, 'Complete!');
+        isProcessing = false;
+        document.getElementById('analyzeBtn').disabled = false;
+        document.getElementById('spinner').style.display = 'none';
+
+        const doneCount = fileQueue.filter(f => f.status === 'done').length;
+        const errCount = fileQueue.filter(f => f.status === 'error').length;
+
+        if (errCount === 0) {
+            document.getElementById('btnText').textContent = '📄 Analyze More Documents';
+            showStatus('✅ All ' + doneCount + ' document' + (doneCount > 1 ? 's' : '') + ' analyzed successfully!', 'success');
+        } else {
+            document.getElementById('btnText').textContent = '📄 Retry Failed Documents';
+            showStatus('⚠️ ' + doneCount + ' succeeded, ' + errCount + ' failed.', 'error');
+        }
+    }
+
+    function getSentimentInfo(sentiment) {
+        const map = {
+            'POSITIVE': { emoji:'😊', label:'Positive', desc:'Positive tone detected', cls:'sentiment-positive' },
+            'NEGATIVE': { emoji:'😟', label:'Negative', desc:'Negative tone detected', cls:'sentiment-negative' },
+            'NEUTRAL':  { emoji:'😐', label:'Neutral',  desc:'Neutral tone detected',  cls:'sentiment-neutral'  },
+            'MIXED':    { emoji:'🤔', label:'Mixed',    desc:'Mixed tone detected',    cls:'sentiment-mixed'    },
+        };
+        return map[sentiment] || map['NEUTRAL'];
+    }
+
+    function displayError(item) {
+        const card = document.createElement('div');
+        card.style.cssText = 'background:var(--surface);border:1px solid var(--error);border-radius:20px;padding:24px;';
+        card.innerHTML =
+            '<div style="display:flex;align-items:center;gap:10px;">' +
+            '<span style="font-size:24px;">❌</span>' +
+            '<div><div style="font-weight:600;color:var(--error);font-size:15px;">' + item.file.name + '</div>' +
+            '<div style="font-size:13px;color:var(--text-muted);margin-top:4px;">' + (item.errorMsg || 'Failed to process') + '</div></div></div>';
+        document.getElementById('resultsSection').appendChild(card);
+    }
+
+    function displayResult(item) {
+        const data = item.result;
+        const text = data.extractedText || '';
+        const keyPhrases = data.keyPhrases || [];
+        const entities = data.entities || [];
+        const sentiment = data.sentiment || 'NEUTRAL';
+        const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
+        const sentInfo = getSentimentInfo(sentiment);
+
+        const phrasesHTML = keyPhrases.length > 0
+            ? keyPhrases.map(p => '<span class="tag tag-phrase">' + p + '</span>').join('')
+            : '<span class="empty-state">No key phrases detected</span>';
+
+        const entitiesHTML = entities.length > 0
+            ? entities.map(e => {
+                const t = e.type || 'OTHER';
+                return '<span class="tag tag-entity tag-' + t + '">' + e.text + '<span class="entity-type"> ' + t + '</span></span>';
+            }).join('')
+            : '<span class="empty-state">No entities detected</span>';
+
+        const card = document.createElement('div');
+        card.className = 'result-card';
+        card.innerHTML =
+            '<div class="result-header">' +
+            '<div class="result-title-group">' +
+            '<div class="success-dot"></div>' +
+            '<div class="result-filename">' + item.file.name + '</div>' +
+            '</div>' +
+            '<span class="result-badge">' + getFileIcon(item.file.type) + ' ' + item.compressedKB + ' KB</span>' +
+            '</div>' +
+            '<div class="stats-row">' +
+            '<div class="stat-box"><div class="stat-number">' + wordCount + '</div><div class="stat-label">Words</div></div>' +
+            '<div class="stat-box"><div class="stat-number">' + keyPhrases.length + '</div><div class="stat-label">Key Phrases</div></div>' +
+            '<div class="stat-box"><div class="stat-number">' + entities.length + '</div><div class="stat-label">Entities</div></div>' +
+            '</div>' +
+            '<div class="section"><div class="section-title">📝 Extracted Text</div>' +
+            '<div class="text-box">' + (text || 'No text extracted') + '</div></div>' +
+            '<div class="divider"></div>' +
+            '<div class="section"><div class="section-title">😊 Sentiment</div>' +
+            '<div class="sentiment-box ' + sentInfo.cls + '">' +
+            '<div class="sentiment-emoji">' + sentInfo.emoji + '</div>' +
+            '<div><div class="sentiment-label">' + sentInfo.label + '</div>' +
+            '<div class="sentiment-desc">' + sentInfo.desc + '</div></div></div></div>' +
+            '<div class="divider"></div>' +
+            '<div class="section"><div class="section-title">🔑 Key Phrases</div>' +
+            '<div class="tags-grid">' + phrasesHTML + '</div></div>' +
+            '<div class="divider"></div>' +
+            '<div class="section"><div class="section-title">🏷️ Entities</div>' +
+            '<div class="tags-grid">' + entitiesHTML + '</div></div>';
+
+        document.getElementById('resultsSection').appendChild(card);
+        card.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    }
+</script>
+</body>
+</html>
